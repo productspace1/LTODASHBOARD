@@ -685,7 +685,7 @@ window.addEventListener("DOMContentLoaded", () => {
       });
 
       const data = await res.json();
-      if (data && data.status === "success" && data.token) {
+      if (data && data.token) {
         driverAuthToken = data.token;
         setDriverStatus(driverAuthStatus, "Authentication successful.", "ok");
         driverAuthCard.classList.add("hidden");
