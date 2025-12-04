@@ -21,8 +21,12 @@
   <main class="page-container container">
     <div class="tab-bar card">
       <div class="tab-bar-inner">
-        <button class="tab-btn active" type="button">Dropdown Master</button>
-        <button class="tab-btn" type="button" disabled>TBD Tool 2</button>
+        <button class="tab-btn active" type="button" data-target="dropdownMaster">
+          Dropdown Master
+        </button>
+        <button class="tab-btn" type="button" data-target="driverSearch">
+          Driver ID Search
+        </button>
         <button class="tab-btn" type="button" disabled>TBD Tool 3</button>
       </div>
     </div>
@@ -143,6 +147,126 @@
           <div id="resultsInfo" class="small-muted mt-2"></div>
           <div id="resultsWarning" class="warning-banner hidden">
             Showing first 500 records. Export to see all.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="driverSearch" class="tab-content">
+      <div id="driverAuthCard" class="card portal-card">
+        <div class="card-body">
+          <div class="card-title">Authentication</div>
+          <p class="small-muted mb-3">
+            Authenticate with the CRM admin API to fetch a temporary token for driver
+            lookups. Credentials are stored only in this session.
+          </p>
+
+          <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label" for="driverEmail">Email ID</label>
+              <input
+                type="email"
+                class="form-control"
+                id="driverEmail"
+                value="Product1@Mooving.com"
+              />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="driverPassword">Password</label>
+              <input
+                type="password"
+                class="form-control"
+                id="driverPassword"
+                value="moov_va6789"
+              />
+            </div>
+            <div class="col-md-4 d-grid d-md-flex justify-content-md-start">
+              <button id="driverAuthBtn" class="btn btn-primary mt-3 mt-md-0">
+                Fetch Auth Token
+              </button>
+            </div>
+          </div>
+
+          <div id="driverAuthStatus" class="status-text neutral mt-3"></div>
+        </div>
+      </div>
+
+      <div id="driverSearchCard" class="card portal-card hidden">
+        <div class="card-body">
+          <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
+            <div>
+              <div class="card-title mb-1">Driver ID Search</div>
+              <p class="small-muted mb-0">
+                Search for one or more Driver IDs to view summaries or detailed profiles.
+              </p>
+            </div>
+            <div class="pill status-pill success" id="driverAuthSuccessPill">
+              Authenticated
+            </div>
+          </div>
+
+          <div class="search-tab-switch mt-3" role="tablist">
+            <button
+              class="search-tab-btn active"
+              type="button"
+              data-search-tab="multi"
+            >
+              Multi-Driver Search
+            </button>
+            <button class="search-tab-btn" type="button" data-search-tab="single">
+              Single Driver Search
+            </button>
+          </div>
+
+          <div class="search-tab-panel active" data-search-panel="multi">
+            <div class="row g-3 align-items-start">
+              <div class="col-md-8">
+                <label class="form-label" for="multiDriverInput">Driver IDs</label>
+                <textarea
+                  id="multiDriverInput"
+                  class="form-control"
+                  rows="3"
+                  placeholder="Paste comma-separated Driver IDs (e.g. 4003639, 4003640)"
+                ></textarea>
+                <div class="small-muted mt-1">Minimum one ID required. Spaces are ignored.</div>
+              </div>
+              <div class="col-md-4 d-grid d-md-flex align-items-end justify-content-md-end">
+                <button id="multiDriverSearchBtn" class="btn btn-primary mt-2 mt-md-0">
+                  Search Drivers
+                </button>
+              </div>
+            </div>
+            <div id="multiSearchStatus" class="status-text neutral mt-3"></div>
+            <div id="multiSearchLoader" class="inline-loader hidden">
+              <div class="spinner small"></div>
+              <span>Searching...</span>
+            </div>
+            <div id="multiResults" class="driver-card-grid mt-3"></div>
+          </div>
+
+          <div class="search-tab-panel" data-search-panel="single">
+            <div class="row g-3 align-items-start">
+              <div class="col-md-6">
+                <label class="form-label" for="singleDriverInput">Driver ID</label>
+                <input
+                  type="text"
+                  id="singleDriverInput"
+                  class="form-control"
+                  placeholder="Enter Driver ID"
+                />
+              </div>
+              <div class="col-md-6 d-grid d-md-flex align-items-end justify-content-md-end">
+                <button id="singleDriverSearchBtn" class="btn btn-primary mt-2 mt-md-0">
+                  View Details
+                </button>
+              </div>
+            </div>
+            <div id="singleSearchStatus" class="status-text neutral mt-3"></div>
+            <div id="singleSearchLoader" class="inline-loader hidden">
+              <div class="spinner small"></div>
+              <span>Searching...</span>
+            </div>
+            <div id="singleDriverProfile" class="mt-3"></div>
           </div>
         </div>
       </div>

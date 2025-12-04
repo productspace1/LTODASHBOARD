@@ -215,6 +215,24 @@ const FP_DATA = [
 
 // Initialize Dropdown Master once DOM is ready
 window.addEventListener("DOMContentLoaded", () => {
+  const tabButtons = document.querySelectorAll(".tab-btn[data-target]");
+  const tabContents = document.querySelectorAll(".tab-content");
+
+  const switchTab = (targetId) => {
+    tabButtons.forEach((btn) => {
+      const isTarget = btn.dataset.target === targetId;
+      btn.classList.toggle("active", isTarget);
+    });
+
+    tabContents.forEach((section) => {
+      section.classList.toggle("active", section.id === targetId);
+    });
+  };
+
+  tabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.target));
+  });
+
   const fpById = FP_DATA.reduce((acc, fp) => {
     acc[String(fp.id)] = fp;
     return acc;
@@ -545,6 +563,592 @@ window.addEventListener("DOMContentLoaded", () => {
     URL.revokeObjectURL(url);
   };
 
+  // ---------------------------
+  // Driver ID Search
+  // ---------------------------
+  const driverAuthStatus = document.getElementById("driverAuthStatus");
+  const driverAuthCard = document.getElementById("driverAuthCard");
+  const driverSearchCard = document.getElementById("driverSearchCard");
+  const driverAuthSuccessPill = document.getElementById("driverAuthSuccessPill");
+  const driverEmailInput = document.getElementById("driverEmail");
+  const driverPasswordInput = document.getElementById("driverPassword");
+  const multiDriverInput = document.getElementById("multiDriverInput");
+  const singleDriverInput = document.getElementById("singleDriverInput");
+  const multiSearchStatus = document.getElementById("multiSearchStatus");
+  const singleSearchStatus = document.getElementById("singleSearchStatus");
+  const multiSearchLoader = document.getElementById("multiSearchLoader");
+  const singleSearchLoader = document.getElementById("singleSearchLoader");
+  const multiResults = document.getElementById("multiResults");
+  const singleDriverProfile = document.getElementById("singleDriverProfile");
+  const searchTabButtons = document.querySelectorAll(".search-tab-btn");
+  const searchPanels = document.querySelectorAll(".search-tab-panel");
+
+  let driverAuthToken = null;
+
+  const placeholderAvatar =
+    "https://api.dicebear.com/7.x/initials/svg?seed=Driver&backgroundColor=b6b8c3";
+
+  const d = (value, fallback = "(empty)") => {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === "string" && value.trim() === "") return fallback;
+    return value;
+  };
+
+  const db = (value) => {
+    if (value === null || value === undefined) return "(empty)";
+    const truthy =
+      value === true || value === "true" || value === "Yes" || value === "yes";
+    const falsy = value === false || value === "false" || value === "No" || value === "no";
+    if (truthy) return "Yes";
+    if (falsy) return "No";
+    return String(value);
+  };
+
+  const df = (value) => {
+    if (!value) return "(empty)";
+    const tryParse = (str) => {
+      const parsed = new Date(str);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+      // handle dd/mm/yyyy
+      const parts = String(str).split("/");
+      if (parts.length === 3) {
+        const [dPart, mPart, yPart] = parts.map((p) => Number(p));
+        const alt = new Date(yPart, mPart - 1, dPart);
+        if (!Number.isNaN(alt.getTime())) return alt;
+      }
+      return null;
+    };
+
+    const parsed = tryParse(value);
+    if (!parsed) return String(value);
+
+    const day = String(parsed.getDate()).padStart(2, "0");
+    const month = parsed.toLocaleString("en-US", { month: "short" });
+    const year = parsed.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const setDriverStatus = (el, message, type = "neutral") => {
+    el.textContent = message || "";
+    el.className = "status-text " + type;
+  };
+
+  const statusClass = (status) => {
+    if (!status) return "neutral";
+    const lower = String(status).toLowerCase();
+    if (lower.includes("active")) return "success";
+    if (lower.includes("pending")) return "warning";
+    if (lower.includes("inactive")) return "danger";
+    return "neutral";
+  };
+
+  const kycClass = (status) => {
+    if (!status) return "neutral";
+    return String(status).toLowerCase().includes("pending") ? "warning" : "success";
+  };
+
+  const toggleSearchTab = (tabKey) => {
+    searchTabButtons.forEach((btn) => {
+      const isActive = btn.dataset.searchTab === tabKey;
+      btn.classList.toggle("active", isActive);
+    });
+    searchPanels.forEach((panel) => {
+      const isActive = panel.dataset.searchPanel === tabKey;
+      panel.classList.toggle("active", isActive);
+    });
+  };
+
+  searchTabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => toggleSearchTab(btn.dataset.searchTab));
+  });
+
+  const handleDriverAuth = async () => {
+    const email = driverEmailInput.value.trim();
+    const password = driverPasswordInput.value.trim();
+
+    if (!email || !password) {
+      setDriverStatus(driverAuthStatus, "Please enter email and password.", "err");
+      return;
+    }
+
+    setDriverStatus(driverAuthStatus, "Authenticating...", "neutral");
+
+    try {
+      const res = await fetch("https://blb-admin-api.emooving.in/login/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          emailId: email,
+          password,
+          userType: "other"
+        })
+      });
+
+      const data = await res.json();
+      if (data && data.status === "success" && data.token) {
+        driverAuthToken = data.token;
+        setDriverStatus(driverAuthStatus, "Authentication successful.", "ok");
+        driverAuthCard.classList.add("hidden");
+        driverSearchCard.classList.remove("hidden");
+        driverAuthSuccessPill.classList.remove("hidden");
+      } else {
+        setDriverStatus(
+          driverAuthStatus,
+          "Authentication failed. Please check credentials and retry.",
+          "err"
+        );
+      }
+    } catch (err) {
+      setDriverStatus(driverAuthStatus, "Login failed: " + err.message, "err");
+    }
+  };
+
+  const ensureToken = (statusEl) => {
+    if (!driverAuthToken) {
+      setDriverStatus(
+        statusEl,
+        "Authentication token is missing or expired. Please fetch token again.",
+        "err"
+      );
+      driverAuthCard.classList.remove("hidden");
+      driverSearchCard.classList.add("hidden");
+      return false;
+    }
+    return true;
+  };
+
+  const fetchDriverById = async (driverId) => {
+    try {
+      const res = await fetch("https://blb-admin-api.emooving.in/driver/getById", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: driverAuthToken
+        },
+        body: JSON.stringify({ driverId: Number(driverId) })
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        throw new Error("Authentication token is missing or expired. Please fetch token again.");
+      }
+
+      const data = await res.json();
+      if (data && data.status === "success" && data.data) {
+        return { ok: true, data: data.data };
+      }
+
+      return { ok: false, error: "Driver not found or an error occurred." };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  };
+
+  const renderSummaryCard = (driver, driverId) => {
+    const card = document.createElement("div");
+    card.className = "driver-summary-card";
+
+    const imgSrc = driver.driverImg || placeholderAvatar;
+    const statusCls = statusClass(driver.driverStatus);
+    const kycCls = kycClass(driver.kycStatus);
+    const franchise = driver.franchiseName || driver.fpName || "(empty)";
+
+    card.innerHTML = `
+      <div class="driver-summary-header">
+        <img src="${imgSrc}" alt="Driver" class="driver-avatar" />
+        <div>
+          <div class="driver-summary-title">${d(driver.driverName, "(No name)")}</div>
+          <div class="small-muted">ID: ${d(driver.blbDriverId || driverId)} • Franchise: ${d(franchise)}</div>
+          <div class="d-flex flex-wrap gap-2 mt-2">
+            <span class="pill status-pill ${statusCls}">${d(driver.driverStatus, "-")}</span>
+            <span class="pill status-pill ${kycCls}">KYC: ${d(driver.kycStatus, "-")}</span>
+          </div>
+        </div>
+      </div>
+      <div class="key-info-grid">
+        <div>
+          <div class="label-text">Mobile</div>
+          <div class="value-text">${d(driver.mobileNumber, "-")}</div>
+        </div>
+        <div>
+          <div class="label-text">Vehicle Number</div>
+          <div class="value-text">${d(driver.vehicleNumber, "-")}</div>
+        </div>
+        <div>
+          <div class="label-text">Onboarding Date</div>
+          <div class="value-text">${df(driver.onboardingDate)}</div>
+        </div>
+        <div>
+          <div class="label-text">KYC Status</div>
+          <div class="value-text">${d(driver.kycStatus, "-")}</div>
+        </div>
+      </div>
+    `;
+
+    return card;
+  };
+
+  const renderNotFoundCard = (driverId, error) => {
+    const card = document.createElement("div");
+    card.className = "not-found-card";
+    card.innerHTML = `
+      <div class="driver-summary-title">Driver ID: ${driverId}</div>
+      <div>${error || "Driver not found or an error occurred."}</div>
+    `;
+    return card;
+  };
+
+  const renderFieldItem = (label, value) => {
+    return `
+      <div class="field-item">
+        <span class="label-text">${label}</span>
+        <div class="value-text">${value}</div>
+      </div>
+    `;
+  };
+
+  const renderFieldGrid = (fields, data) => {
+    return (
+      `<div class="field-grid">` +
+      fields
+        .map((field) => {
+          const raw = data ? data[field.key] : null;
+          const formatted = field.format ? field.format(raw) : d(raw);
+          return renderFieldItem(field.label, formatted);
+        })
+        .join("") +
+      `</div>`
+    );
+  };
+
+  const renderDocLinks = (docs, data) => {
+    return (
+      `<div class="document-links">` +
+      docs
+        .map((doc) => {
+          const href = data ? data[doc.key] : null;
+          const display = href
+            ? `<a href="${href}" target="_blank" rel="noopener noreferrer">View</a>`
+            : "<span class=\"small-muted\">(empty)</span>";
+          return `
+            <div class="doc-link">
+              <span class="label-text">${doc.label}</span>
+              ${display}
+            </div>
+          `;
+        })
+        .join("") +
+      `</div>`
+    );
+  };
+
+  const renderSingleProfile = (driver, driverId) => {
+    if (!driver) return "";
+
+    const header = `
+      <div class="profile-card">
+        <div class="driver-profile-header">
+          <div class="d-flex gap-3 align-items-center">
+            <img src="${driver.driverImg || placeholderAvatar}" alt="Driver" class="profile-avatar-lg" />
+            <div>
+              <div class="driver-summary-title mb-1">${d(driver.driverName, "(No name)")}</div>
+              <div class="driver-profile-meta">
+                <span>Driver ID: ${d(driver.blbDriverId || driverId)}</span>
+                <span>• Franchise: ${d(driver.franchiseName || driver.fpName, "(empty)")}</span>
+              </div>
+              <div class="d-flex flex-wrap gap-2 mt-2">
+                <span class="pill status-pill ${statusClass(driver.driverStatus)}">${d(
+      driver.driverStatus,
+      "-"
+    )}</span>
+                <span class="pill status-pill ${kycClass(driver.kycStatus)}">KYC: ${d(
+      driver.kycStatus,
+      "-"
+    )}</span>
+                <span class="pill status-pill warning">Agreement: ${d(
+      driver.agreementStatus,
+      "-"
+    )}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const basicFields = [
+      { label: "Father's Name", key: "fatherName" },
+      { label: "Gender", key: "gender" },
+      { label: "Date of Birth", key: "dateOfBirth", format: df },
+      { label: "Mobile Number", key: "mobileNumber" },
+      { label: "Alternate Mobile", key: "alternateMobileNumber" },
+      { label: "Emergency Contact", key: "emergencyContactNumber" },
+      { label: "Blood Group", key: "bloodgroup" },
+      { label: "Aadhaar Number", key: "aadharNumber" },
+      { label: "PAN Number", key: "panNumber" },
+      { label: "Customer Type", key: "customerType" },
+      { label: "Driver Status", key: "driverStatus" },
+      { label: "Onboarding Date", key: "onboardingDate", format: df },
+      { label: "Onboarded On", key: "onboardedOn", format: df },
+      { label: "Onboard Approval Date", key: "onboardApprovalDate", format: df },
+      { label: "Created By", key: "createdBy" },
+      { label: "Onboarded By", key: "onboardedBy" },
+      { label: "FNF Status", key: "fnfStatus" },
+      { label: "FNF Date", key: "fnfDate", format: df }
+    ];
+
+    const referralFields = [
+      { label: "Referral applicable", key: "referralApplicable", format: db },
+      { label: "Referral amount", key: "referralAmount" },
+      { label: "Payment method", key: "referralPaymentMethod" },
+      { label: "Referrer name", key: "referrerName" },
+      { label: "Referrer contact", key: "referrerContact" },
+      { label: "Referrer UPI ID", key: "referrerUpiID" },
+      { label: "Account number", key: "refAccountNumber" },
+      { label: "Bank name", key: "refBankName" },
+      { label: "Branch", key: "refBranchName" },
+      { label: "IFSC", key: "refIfscCode" }
+    ];
+
+    const currentAddressFields = [
+      { label: "Flat / House", key: "current_flat" },
+      { label: "House", key: "current_house" },
+      { label: "Building", key: "current_building" },
+      { label: "Floor", key: "current_floor" },
+      { label: "Colony", key: "current_colony" },
+      { label: "Locality", key: "current_locality" },
+      { label: "Street", key: "current_street" },
+      { label: "Landmark", key: "current_landmark" },
+      { label: "Village / Town / City", key: "current_village" },
+      { label: "Town", key: "current_town" },
+      { label: "City", key: "current_city" },
+      { label: "District", key: "current_district" },
+      { label: "Sub District", key: "current_sub_district" },
+      { label: "State", key: "current_state" },
+      { label: "Country", key: "current_country" },
+      { label: "Pincode", key: "current_pincode" },
+      { label: "Residing since", key: "residingSince", format: df },
+      { label: "Residing since in years", key: "residingSinceInYears" }
+    ];
+
+    const permanentAddressFields = [
+      { label: "Care of", key: "permanent_care_of" },
+      { label: "Flat / House", key: "permanent_flat" },
+      { label: "House", key: "permanent_house" },
+      { label: "Building", key: "permanent_building" },
+      { label: "Floor", key: "permanent_floor" },
+      { label: "Colony", key: "permanent_colony" },
+      { label: "Locality", key: "permanent_locality" },
+      { label: "Street", key: "permanent_street" },
+      { label: "Landmark", key: "permanent_landmark" },
+      { label: "Village / Town / City", key: "permanent_village" },
+      { label: "Town", key: "permanent_town" },
+      { label: "City", key: "permanent_city" },
+      { label: "District", key: "permanent_district" },
+      { label: "Sub District", key: "permanent_sub_district" },
+      { label: "State", key: "permanent_state" },
+      { label: "Country", key: "permanent_country" },
+      { label: "Pincode", key: "permanent_pincode" }
+    ];
+
+    const vehicleFields = [
+      { label: "Own vehicle", key: "isOwnVehicle", format: db },
+      { label: "Vehicle number", key: "vehicleNumber" },
+      { label: "Brand", key: "brand" },
+      { label: "Model year", key: "vehicleModel" },
+      { label: "Chassis number", key: "chasisNumber" },
+      { label: "Max speed", key: "maxSpeed" },
+      { label: "Controller rating", key: "vehicleControllRating" },
+      { label: "Motor rating", key: "vehicleMotorRating" },
+      { label: "Weight without battery", key: "weightWithOutBattery" },
+      { label: "Parking address", key: "parkingAddress" },
+      { label: "Registration date", key: "registrationDate", format: df },
+      { label: "Registration expiry", key: "expiryDateOfVehicle", format: df },
+      { label: "Vehicle age", key: "vehicleAge" },
+      { label: "E-rickshaw owner name", key: "eRickshawOwnerName" },
+      { label: "E-rickshaw owner number", key: "eRickshawOwnerNumber" },
+      { label: "Distance to franchise", key: "distance" },
+      { label: "Asset status", key: "assetStatus" }
+    ];
+
+    const planFields = [
+      { label: "Plan ID", key: "planId" },
+      { label: "Plan name", key: "planName" },
+      { label: "Plan amount (per EMI)", key: "planAmount" },
+      { label: "Monthly rent", key: "monthlyRent" },
+      { label: "Onboarding charges", key: "onboardingCharges" },
+      { label: "Security amount", key: "securityAmount" },
+      { label: "Non refundable SD", key: "nonRefundableSecurityDeposit" },
+      { label: "Refundable SD", key: "refundableSecurityDeposit" },
+      { label: "Fitment charges", key: "fitmentCharges" },
+      { label: "BGV charges", key: "bgvCharges" },
+      { label: "Collected amount", key: "collectedAmount" },
+      { label: "Spare asset quantity", key: "spareAssetQuantiy" },
+      { label: "Payment mode", key: "paymentMode" },
+      { label: "Transaction ID", key: "transactionID" },
+      { label: "Cash kept by", key: "cashKeptBy" },
+      { label: "Payment date and time", key: "dateAndTime", format: df },
+      { label: "Plan start date", key: "planStartDate", format: df },
+      { label: "Plan end date", key: "planEndDate", format: df },
+      { label: "Franchise SAP", key: "franchiseSap" },
+      { label: "Franchise name", key: "franchiseName" }
+    ];
+
+    const assetFields = [
+      { label: "Battery S/N", key: "batterySlNumber" },
+      { label: "Charger S/N", key: "chargerSlNumber" },
+      { label: "SOC Meter S/N", key: "socMeterSlNumber" },
+      { label: "Service battery", key: "serviceAssetBattery" },
+      { label: "Service charger", key: "serviceAssetCharger" },
+      { label: "Service SOC", key: "serviceAssetSoc" },
+      { label: "Assigned kit", key: "assignedkit" }
+    ];
+
+    const docLinks = [
+      { label: "Driver photo", key: "driverImg" },
+      { label: "Driver & vehicle image", key: "driverAndVehicleImg" },
+      { label: "Vehicle front image", key: "driverWithVehicleFrontImg" },
+      { label: "Vehicle back image", key: "driverWithVehicleBack" },
+      { label: "RC image", key: "rcImg" },
+      { label: "Driver license", key: "driverLicense" },
+      { label: "Referrer Aadhaar", key: "referrerAadhaarImg" },
+      { label: "Onboarding form (front)", key: "onboardingFormImg" },
+      { label: "Onboarding form (back)", key: "onboardingFormImgBack" },
+      { label: "Onboarding documents", key: "onboardingDocuments" },
+      { label: "KYC document PDF", key: "kycDocumentImg" },
+      { label: "BGV document", key: "bgvDocumentImg" },
+      { label: "PAN card", key: "panCard" },
+      { label: "Cheque 1", key: "cheque1" },
+      { label: "Cheque 2", key: "cheque2" },
+      { label: "Cheque 3", key: "cheque3" }
+    ];
+
+    const bankFields = [
+      { label: "Bank name", key: "bankName" },
+      { label: "Bank branch", key: "bankBranch" },
+      { label: "Account number", key: "bankAccountNumber" },
+      { label: "IFSC", key: "ifscCode" },
+      { label: "UPI ID", key: "upiId" },
+      { label: "UDC Bank Name", key: "udcBankName" }
+    ];
+
+    return (
+      header +
+      `<div class="profile-card">
+        <div class="section-title">Basic Information</div>
+        ${renderFieldGrid(basicFields, driver)}
+      </div>
+      <div class="profile-card">
+        <div class="section-title">Referral Details</div>
+        ${renderFieldGrid(referralFields, driver)}
+      </div>
+      <div class="profile-card">
+        <div class="section-title">Addresses</div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="section-title mb-2">Current Address</div>
+            ${renderFieldGrid(currentAddressFields, driver)}
+          </div>
+          <div class="col-md-6">
+            <div class="section-title mb-2">Permanent Address</div>
+            ${renderFieldGrid(permanentAddressFields, driver)}
+          </div>
+        </div>
+      </div>
+      <div class="profile-card">
+        <div class="section-title">Vehicle & Ownership</div>
+        ${renderFieldGrid(vehicleFields, driver)}
+      </div>
+      <div class="profile-card">
+        <div class="section-title">Plan & Financials</div>
+        ${renderFieldGrid(planFields, driver)}
+      </div>
+      <div class="profile-card">
+        <div class="section-title">Assets (Main + Service)</div>
+        ${renderFieldGrid(assetFields, driver)}
+      </div>
+      <div class="profile-card">
+        <div class="section-title">KYC & Documents</div>
+        <div class="field-grid">
+          ${renderFieldItem("KYC Status", d(driver.kycStatus))}
+          ${renderFieldItem("KYC verified CO Name", d(driver.kycVerifiedCOName))}
+          ${renderFieldItem("KYC verified Name", d(driver.kycVerifiedName))}
+          ${renderFieldItem("KYC verified DOB", df(driver.kycVerifiedDOB))}
+          ${renderFieldItem("KYC verified Address", d(driver.kycVerifiedAddress))}
+          ${renderFieldItem("KYC verified State", d(driver.kycVerifiedState))}
+          ${renderFieldItem("KYC verified Pincode", d(driver.kycVerifiedPincode))}
+          ${renderFieldItem("Cheque numbers", d([driver.cheque1No, driver.cheque2No, driver.cheque3No].filter(Boolean).join(", ") || "(empty)"))}
+        </div>
+        <div class="mt-3">${renderDocLinks(docLinks, driver)}</div>
+      </div>
+      <div class="profile-card">
+        <div class="section-title">Bank / Payment Details (Driver)</div>
+        ${renderFieldGrid(bankFields, driver)}
+      </div>`
+    );
+  };
+
+  const handleMultiSearch = async () => {
+    if (!ensureToken(multiSearchStatus)) return;
+
+    const raw = multiDriverInput.value
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => id);
+
+    if (!raw.length) {
+      setDriverStatus(multiSearchStatus, "Please enter at least one Driver ID.", "err");
+      return;
+    }
+
+    setDriverStatus(multiSearchStatus, "Searching drivers...", "neutral");
+    multiResults.innerHTML = "";
+    multiSearchLoader.classList.remove("hidden");
+
+    const lookups = await Promise.allSettled(raw.map((id) => fetchDriverById(id)));
+    multiSearchLoader.classList.add("hidden");
+
+    lookups.forEach((result, index) => {
+      const driverId = raw[index];
+      if (result.status === "fulfilled" && result.value.ok) {
+        multiResults.appendChild(renderSummaryCard(result.value.data, driverId));
+      } else if (result.status === "fulfilled") {
+        multiResults.appendChild(renderNotFoundCard(driverId, result.value.error));
+      } else {
+        multiResults.appendChild(renderNotFoundCard(driverId, result.reason));
+      }
+    });
+
+    setDriverStatus(multiSearchStatus, `Completed. Processed ${raw.length} ID(s).`, "ok");
+  };
+
+  const handleSingleSearch = async () => {
+    if (!ensureToken(singleSearchStatus)) return;
+
+    const driverId = singleDriverInput.value.trim();
+    if (!driverId) {
+      setDriverStatus(singleSearchStatus, "Please enter a Driver ID.", "err");
+      return;
+    }
+
+    setDriverStatus(singleSearchStatus, "Searching driver...", "neutral");
+    singleDriverProfile.innerHTML = "";
+    singleSearchLoader.classList.remove("hidden");
+
+    const result = await fetchDriverById(driverId);
+    singleSearchLoader.classList.add("hidden");
+
+    if (result.ok) {
+      singleDriverProfile.innerHTML = renderSingleProfile(result.data, driverId);
+      setDriverStatus(singleSearchStatus, "Driver profile loaded.", "ok");
+    } else {
+      setDriverStatus(
+        singleSearchStatus,
+        `Failed to fetch details for Driver ID ${driverId}. ${result.error || ""}`,
+        "err"
+      );
+    }
+  };
+
   // Event bindings
   document.getElementById("authBtn").addEventListener("click", fetchAuthToken);
   document.getElementById("fetchAssetsBtn").addEventListener("click", fetchAssetsForSelectedFps);
@@ -559,6 +1163,14 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("deselectAllFps").addEventListener("click", deselectAllFranchises);
 
   searchInput.addEventListener("input", renderTable);
+
+  document.getElementById("driverAuthBtn").addEventListener("click", handleDriverAuth);
+  document
+    .getElementById("multiDriverSearchBtn")
+    .addEventListener("click", handleMultiSearch);
+  document
+    .getElementById("singleDriverSearchBtn")
+    .addEventListener("click", handleSingleSearch);
 
   // Initial load
   renderFpList();
