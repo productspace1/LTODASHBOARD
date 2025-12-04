@@ -1091,7 +1091,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (!ensureToken(multiSearchStatus)) return;
 
     const raw = multiDriverInput.value
-      .split(",")
+      .split(/[\,\r\n\s]+/)
       .map((id) => id.trim())
       .filter((id) => id);
 
