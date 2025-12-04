@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LTO Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">L</div>
+        <div>
+          <div class="brand-name">LTO Dashboard</div>
+          <div class="brand-subtitle">Modern Minimalist SaaS</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="ghost">Support</button>
+        <button class="primary">Create Workspace</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <nav class="tabs" aria-label="Main tabs">
+        <button class="tab active" data-tab="bulk-exchange">Bulk Asset Exchange</button>
+        <button class="tab" disabled title="Coming soon">Portfolio Insights</button>
+        <button class="tab" disabled title="Coming soon">Activity Center</button>
+      </nav>
+
+      <section id="bulk-exchange" class="tab-panel active" aria-labelledby="bulk-exchange">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Exchange workspace</p>
+            <h1>Bulk asset exchange</h1>
+            <p class="lede">Swap multiple assets in a single, auditable batch with confidence. Configure your terms, preview settlement, and publish when ready.</p>
+            <div class="tag-row">
+              <span class="pill success">On-chain verified</span>
+              <span class="pill">Auto reconciliation</span>
+              <span class="pill">24/7 monitoring</span>
+            </div>
+          </div>
+          <div class="stats-card">
+            <div class="stat">
+              <span class="label">Ready batches</span>
+              <div class="value">12</div>
+              <span class="hint">Awaiting approval</span>
+            </div>
+            <div class="stat">
+              <span class="label">Avg. settlement</span>
+              <div class="value gradient">$482k</div>
+              <span class="hint">Past 30 days</span>
+            </div>
+            <div class="divider"></div>
+            <div class="stat row">
+              <div>
+                <span class="label">Audit status</span>
+                <div class="value">Compliant</div>
+              </div>
+              <div class="chip">SOC2</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Configure</p>
+                <h2>Batch parameters</h2>
+              </div>
+              <button class="ghost">Use template</button>
+            </div>
+            <form class="form-grid">
+              <label class="field">
+                <span class="field-label">Batch name</span>
+                <input type="text" placeholder="Quarterly treasury refresh" />
+              </label>
+              <label class="field">
+                <span class="field-label">Source wallet</span>
+                <input type="text" placeholder="0xA8...19F2" />
+              </label>
+              <label class="field">
+                <span class="field-label">Destination</span>
+                <input type="text" placeholder="Treasury / Operations" />
+              </label>
+              <label class="field">
+                <span class="field-label">Settlement window</span>
+                <select>
+                  <option>Immediate</option>
+                  <option>In 1 hour</option>
+                  <option>In 24 hours</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="field-label">Compliance tag</span>
+                <select>
+                  <option>Standard (SOC2)</option>
+                  <option>EU (GDPR)</option>
+                  <option>Financial (SOX)</option>
+                </select>
+              </label>
+            </form>
+            <div class="actions end">
+              <button class="ghost">Save draft</button>
+              <button class="primary">Preview settlement</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Assets</p>
+                <h2>Queued transfers</h2>
+              </div>
+              <div class="chip">4 assets</div>
+            </div>
+
+            <div class="asset-list">
+              <article class="asset">
+                <div class="avatar gradient">US</div>
+                <div>
+                  <div class="asset-title">USDC Stablecoin</div>
+                  <div class="asset-meta">$210,000 · Treasury pool</div>
+                </div>
+                <span class="pill light">Instant</span>
+              </article>
+              <article class="asset">
+                <div class="avatar gradient">ET</div>
+                <div>
+                  <div class="asset-title">Ethereum</div>
+                  <div class="asset-meta">45 ETH · Ops pool</div>
+                </div>
+                <span class="pill light">1h delay</span>
+              </article>
+              <article class="asset">
+                <div class="avatar gradient">BT</div>
+                <div>
+                  <div class="asset-title">Wrapped BTC</div>
+                  <div class="asset-meta">6.2 wBTC · Treasury</div>
+                </div>
+                <span class="pill light">Instant</span>
+              </article>
+              <article class="asset">
+                <div class="avatar gradient">NF</div>
+                <div>
+                  <div class="asset-title">NFT Portfolio</div>
+                  <div class="asset-meta">12 items · Custody vault</div>
+                </div>
+                <span class="pill light">Review</span>
+              </article>
+            </div>
+
+            <div class="panel-footer">
+              <div>
+                <div class="foot-title">Add assets</div>
+                <div class="foot-sub">Drag & drop or import CSV templates.</div>
+              </div>
+              <div class="button-row">
+                <button class="ghost">Import CSV</button>
+                <button class="primary">Add asset</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card span-2">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Preview</p>
+                <h2>Settlement summary</h2>
+              </div>
+              <div class="chip quiet">Auto-balanced</div>
+            </div>
+            <div class="summary-grid">
+              <div>
+                <p class="label">Counterparties</p>
+                <p class="value">5 total</p>
+                <p class="muted">3 internal · 2 external</p>
+              </div>
+              <div>
+                <p class="label">Network fees</p>
+                <p class="value">$412</p>
+                <p class="muted">Optimized · 12% savings</p>
+              </div>
+              <div>
+                <p class="label">Risk scoring</p>
+                <p class="value gradient">Low</p>
+                <p class="muted">Sanctions & KYB cleared</p>
+              </div>
+              <div>
+                <p class="label">Expected clear</p>
+                <p class="value">14 min</p>
+                <p class="muted">With proofs attached</p>
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="actions end">
+              <button class="ghost">Download PDF</button>
+              <button class="primary">Publish batch</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
