@@ -1087,11 +1087,13 @@ window.addEventListener("DOMContentLoaded", () => {
     );
   };
 
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
   const handleMultiSearch = async () => {
     if (!ensureToken(multiSearchStatus)) return;
 
     const raw = multiDriverInput.value
-      .split(",")
+      .split(/[\,\r\n\s]+/)
       .map((id) => id.trim())
       .filter((id) => id);
 
@@ -1104,7 +1106,18 @@ window.addEventListener("DOMContentLoaded", () => {
     multiResults.innerHTML = "";
     multiSearchLoader.classList.remove("hidden");
 
-    const lookups = await Promise.allSettled(raw.map((id) => fetchDriverById(id)));
+    const lookups = [];
+
+    for (const id of raw) {
+      try {
+        const result = await fetchDriverById(id);
+        lookups.push({ status: "fulfilled", value: result });
+      } catch (error) {
+        lookups.push({ status: "rejected", reason: error });
+      }
+
+      await wait(900);
+    }
     multiSearchLoader.classList.add("hidden");
 
     lookups.forEach((result, index) => {
