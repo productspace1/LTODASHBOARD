@@ -217,6 +217,7 @@ const FP_DATA = [
 window.addEventListener("DOMContentLoaded", () => {
   const tabButtons = document.querySelectorAll(".tab-btn[data-target]");
   const tabContents = document.querySelectorAll(".tab-content");
+  const adminApiBase = "https://blb-admin-api.emooving.in";
 
   const switchTab = (targetId) => {
     tabButtons.forEach((btn) => {
@@ -583,7 +584,22 @@ window.addEventListener("DOMContentLoaded", () => {
   const searchTabButtons = document.querySelectorAll(".search-tab-btn");
   const searchPanels = document.querySelectorAll(".search-tab-panel");
 
+  // Bulk asset exchange
+  const bulkFileInput = document.getElementById("bulkFileInput");
+  const bulkLoadBtn = document.getElementById("bulkLoadBtn");
+  const bulkProcessBtn = document.getElementById("bulkProcessBtn");
+  const bulkUploadStatus = document.getElementById("bulkUploadStatus");
+  const bulkPendingPill = document.getElementById("bulkPendingPill");
+  const bulkSuccessPill = document.getElementById("bulkSuccessPill");
+  const bulkFailedPill = document.getElementById("bulkFailedPill");
+  const bulkResultsBody = document.getElementById("bulkResultsBody");
+  const bulkFileName = document.getElementById("bulkFileName");
+  const bulkResultsInfo = document.getElementById("bulkResultsInfo");
+  const bulkLoader = document.getElementById("bulkLoader");
+  const bulkAuthPill = document.getElementById("bulkAuthPill");
+
   let driverAuthToken = null;
+  let bulkRows = [];
 
   const placeholderAvatar =
     "https://api.dicebear.com/7.x/initials/svg?seed=Driver&backgroundColor=b6b8c3";
@@ -631,6 +647,18 @@ window.addEventListener("DOMContentLoaded", () => {
   const setDriverStatus = (el, message, type = "neutral") => {
     el.textContent = message || "";
     el.className = "status-text " + type;
+  };
+
+  const setBulkStatus = (message, type = "neutral") => {
+    if (bulkUploadStatus) {
+      setDriverStatus(bulkUploadStatus, message, type);
+    }
+  };
+
+  const updateBulkAuthPill = (hasToken = !!driverAuthToken) => {
+    if (!bulkAuthPill) return;
+    bulkAuthPill.textContent = hasToken ? "Driver token ready" : "Driver token required";
+    bulkAuthPill.className = `pill status-pill ${hasToken ? "success" : "neutral"}`;
   };
 
   const statusClass = (status) => {
@@ -691,6 +719,7 @@ window.addEventListener("DOMContentLoaded", () => {
         driverAuthCard.classList.add("hidden");
         driverSearchCard.classList.remove("hidden");
         driverAuthSuccessPill.classList.remove("hidden");
+        updateBulkAuthPill(true);
       } else {
         setDriverStatus(
           driverAuthStatus,
@@ -712,9 +741,52 @@ window.addEventListener("DOMContentLoaded", () => {
       );
       driverAuthCard.classList.remove("hidden");
       driverSearchCard.classList.add("hidden");
+      updateBulkAuthPill(false);
       return false;
     }
+    updateBulkAuthPill(true);
     return true;
+  };
+
+  const postWithToken = async (path, payload) => {
+    try {
+      const res = await fetch(`${adminApiBase}${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: driverAuthToken
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        throw new Error("Authentication token is missing or expired. Please fetch token again.");
+      }
+
+      const data = await res.json();
+      if (data && data.status === "success") {
+        return { ok: true, data };
+      }
+
+      return { ok: false, error: data?.message || "Request failed." };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  };
+
+  const currentDriverAssets = async (driverId) => {
+    return postWithToken("/asset/currentDriverAssets", { driverId: Number(driverId) });
+  };
+
+  const assetDetailView = async (serialNo) => {
+    return postWithToken("/asset/assetDetailView", { serialNo });
+  };
+
+  const exchangeAssets = async (driverId, serialNo) => {
+    return postWithToken("/asset/exchangeAssets", {
+      driverId: Number(driverId),
+      serialNo
+    });
   };
 
   const fetchDriverById = async (driverId) => {
@@ -740,6 +812,252 @@ window.addEventListener("DOMContentLoaded", () => {
       return { ok: false, error: "Driver not found or an error occurred." };
     } catch (err) {
       return { ok: false, error: err.message };
+    }
+  };
+
+  const summarizeBulkRows = () => {
+    return bulkRows.reduce(
+      (acc, row) => {
+        const key = row.status || "pending";
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      },
+      { pending: 0, processing: 0, success: 0, failed: 0 }
+    );
+  };
+
+  const updateBulkPills = () => {
+    const counts = summarizeBulkRows();
+    if (bulkPendingPill)
+      bulkPendingPill.textContent = `Pending: ${counts.pending + counts.processing}`;
+    if (bulkSuccessPill) bulkSuccessPill.textContent = `Success: ${counts.success}`;
+    if (bulkFailedPill) bulkFailedPill.textContent = `Failed: ${counts.failed}`;
+  };
+
+  const renderBulkTable = () => {
+    if (!bulkResultsBody) return;
+
+    if (!bulkRows.length) {
+      bulkResultsBody.innerHTML =
+        '<tr><td colspan="6" class="text-center text-muted">Upload a CSV to begin.</td></tr>';
+      if (bulkResultsInfo) bulkResultsInfo.textContent = "";
+      updateBulkPills();
+      return;
+    }
+
+    const statusClassMap = {
+      pending: "neutral",
+      processing: "warning",
+      success: "success",
+      failed: "danger"
+    };
+
+    const rowsHtml = bulkRows
+      .map((row, idx) => {
+        const cls = statusClassMap[row.status] || "neutral";
+        const label = row.status ? row.status.charAt(0).toUpperCase() + row.status.slice(1) : "Pending";
+        return `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>${row.driverId || "-"}</td>
+            <td>${row.serialNo || "-"}</td>
+            <td>${row.currentAsset || "-"}</td>
+            <td><span class="pill status-pill ${cls}">${label}</span></td>
+            <td>${row.message || "-"}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    bulkResultsBody.innerHTML = rowsHtml;
+
+    const counts = summarizeBulkRows();
+    if (bulkResultsInfo)
+      bulkResultsInfo.textContent = `Total: ${bulkRows.length} • Pending: ${counts.pending + counts.processing} • Success: ${counts.success} • Failed: ${counts.failed}`;
+    updateBulkPills();
+  };
+
+  const parseCsvContent = (text) => {
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line);
+
+    if (!lines.length) return [];
+
+    const firstRow = lines[0].split(",").map((c) => c.trim());
+    const normalized = firstRow.map((c) => c.toLowerCase());
+    const headerLooksValid = normalized.some((c) => c.includes("driver")) && normalized.some((c) => c.includes("serial"));
+
+    let startIndex = 0;
+    let driverIdx = 0;
+    let serialIdx = 1;
+
+    if (headerLooksValid) {
+      driverIdx = normalized.findIndex((c) => c.includes("driver"));
+      serialIdx = normalized.findIndex((c) => c.includes("serial"));
+      if (driverIdx === -1) driverIdx = 0;
+      if (serialIdx === -1) serialIdx = 1;
+      startIndex = 1;
+    }
+
+    const entries = [];
+    for (let i = startIndex; i < lines.length; i++) {
+      const parts = lines[i].split(",").map((c) => c.trim());
+      const driverId = parts[driverIdx];
+      const serialNo = parts[serialIdx];
+      if (driverId && serialNo) {
+        entries.push({ driverId, serialNo });
+      }
+    }
+
+    return entries;
+  };
+
+  const readFileAsText = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsText(file);
+    });
+  };
+
+  const loadBulkCsv = async () => {
+    if (!ensureToken(bulkUploadStatus)) return;
+
+    const file = bulkFileInput?.files?.[0];
+    if (!file) {
+      setBulkStatus("Please select a CSV file to load.", "err");
+      return;
+    }
+
+    try {
+      const text = await readFileAsText(file);
+      const entries = parseCsvContent(text);
+
+      if (!entries.length) {
+        setBulkStatus("No valid rows found. Ensure the CSV has driverId and serialNo columns.", "err");
+        bulkRows = [];
+        bulkProcessBtn.disabled = true;
+        renderBulkTable();
+        return;
+      }
+
+      bulkRows = entries.map((entry, index) => ({
+        rowNumber: index + 1,
+        driverId: entry.driverId,
+        serialNo: entry.serialNo,
+        status: "pending",
+        message: "",
+        currentAsset: ""
+      }));
+
+      if (bulkFileName) bulkFileName.textContent = file.name;
+      bulkProcessBtn.disabled = false;
+      renderBulkTable();
+      setBulkStatus(`Loaded ${entries.length} row(s). Ready to process.`, "ok");
+    } catch (err) {
+      setBulkStatus(`Failed to read file: ${err.message}`, "err");
+      bulkProcessBtn.disabled = true;
+    }
+  };
+
+  const extractCurrentAssetLabel = (data) => {
+    const assets = data?.data?.assets || data?.data || data?.assets;
+    if (Array.isArray(assets) && assets.length) {
+      const asset = assets[0];
+      const serial =
+        asset.assetSerial || asset.assetSerialNo || asset.serialNo || asset.serialNumber || asset.assetName;
+      const type = asset.assetType || asset.type || asset.assetCategory;
+      if (serial || type) {
+        return [type, serial].filter(Boolean).join(" • ") || "(empty)";
+      }
+    }
+    return "(not available)";
+  };
+
+  const setRowStatus = (index, status, message, extra = {}) => {
+    const row = bulkRows[index];
+    if (!row) return;
+    row.status = status;
+    row.message = message || "";
+    if (extra.currentAsset !== undefined) row.currentAsset = extra.currentAsset;
+    renderBulkTable();
+  };
+
+  const lockBulkUi = (locked) => {
+    if (bulkFileInput) bulkFileInput.disabled = locked;
+    if (bulkLoadBtn) bulkLoadBtn.disabled = locked;
+    if (bulkProcessBtn) bulkProcessBtn.disabled = locked || !bulkRows.length;
+    if (bulkLoader) bulkLoader.classList.toggle("hidden", !locked);
+  };
+
+  const processBulkExchange = async () => {
+    if (!ensureToken(bulkUploadStatus)) return;
+    if (!bulkRows.length) {
+      setBulkStatus("Upload and load a CSV before starting exchanges.", "err");
+      return;
+    }
+
+    lockBulkUi(true);
+    setBulkStatus("Processing exchanges...", "neutral");
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    try {
+      for (let i = 0; i < bulkRows.length; i++) {
+        const row = bulkRows[i];
+        setRowStatus(i, "processing", "Fetching driver assets...");
+
+        const driverAssets = await currentDriverAssets(row.driverId);
+        const currentAssetLabel = driverAssets.ok
+          ? extractCurrentAssetLabel(driverAssets.data)
+          : "(not available)";
+        if (!driverAssets.ok) {
+          setRowStatus(i, "failed", driverAssets.error || "Unable to fetch driver assets.", {
+            currentAsset: currentAssetLabel
+          });
+          failureCount++;
+          continue;
+        }
+
+        setRowStatus(i, "processing", "Validating asset...", { currentAsset: currentAssetLabel });
+        const assetDetails = await assetDetailView(row.serialNo);
+        if (!assetDetails.ok) {
+          setRowStatus(i, "failed", assetDetails.error || "Asset not found.", {
+            currentAsset: currentAssetLabel
+          });
+          failureCount++;
+          continue;
+        }
+
+        setRowStatus(i, "processing", "Exchanging asset...", { currentAsset: currentAssetLabel });
+        const exchange = await exchangeAssets(row.driverId, row.serialNo);
+        if (!exchange.ok) {
+          setRowStatus(i, "failed", exchange.error || "Exchange failed.", {
+            currentAsset: currentAssetLabel
+          });
+          failureCount++;
+          continue;
+        }
+
+        setRowStatus(i, "success", "Exchanged successfully.", { currentAsset: currentAssetLabel });
+        successCount++;
+      }
+
+      setBulkStatus(`Finished processing ${bulkRows.length} row(s).`, "ok");
+      if (bulkResultsInfo)
+        bulkResultsInfo.textContent = `Success: ${successCount} • Failed: ${failureCount} • Pending: ${Math.max(
+          0,
+          bulkRows.length - successCount - failureCount
+        )}`;
+    } catch (err) {
+      setBulkStatus(`Processing halted: ${err.message}`, "err");
+    } finally {
+      lockBulkUi(false);
+      updateBulkPills();
     }
   };
 
@@ -1185,6 +1503,11 @@ window.addEventListener("DOMContentLoaded", () => {
     .getElementById("singleDriverSearchBtn")
     .addEventListener("click", handleSingleSearch);
 
+  if (bulkLoadBtn) bulkLoadBtn.addEventListener("click", loadBulkCsv);
+  if (bulkProcessBtn) bulkProcessBtn.addEventListener("click", processBulkExchange);
+
   // Initial load
   renderFpList();
+  updateBulkAuthPill(false);
+  renderBulkTable();
 });
