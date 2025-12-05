@@ -21,19 +21,54 @@
   <main class="page-container container">
     <div class="tab-bar card">
       <div class="tab-bar-inner">
-        <button class="tab-btn active" type="button" data-target="dropdownMaster">
-          Dropdown Master
-        </button>
-        <button class="tab-btn" type="button" data-target="driverSearch">
-          Driver ID Search
-        </button>
-        <button class="tab-btn" type="button" data-target="bulkExchange">
-          BULK ASSET EXCHANGE
-        </button>
+        <button class="tab-btn active" type="button" data-target="loginTab">Login</button>
+        <button class="tab-btn" type="button" data-target="dropdownMaster">Dropdown Master</button>
+        <button class="tab-btn" type="button" data-target="driverSearch">Driver ID Search</button>
+        <button class="tab-btn" type="button" data-target="bulkExchange">BULK ASSET EXCHANGE</button>
       </div>
     </div>
 
-    <section id="dropdownMaster" class="tab-content active">
+    <section id="loginTab" class="tab-content active">
+      <div id="driverAuthCard" class="card portal-card">
+        <div class="card-body">
+          <div class="card-title">Login</div>
+          <p class="small-muted mb-3">
+            Authenticate with the CRM admin API to fetch a token used across Driver Search
+            and Bulk Asset Exchange tools. Credentials are stored only in this session.
+          </p>
+
+          <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label" for="driverEmail">Email ID</label>
+              <input
+                type="email"
+                class="form-control"
+                id="driverEmail"
+                value="Product1@Mooving.com"
+              />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="driverPassword">Password</label>
+              <input
+                type="password"
+                class="form-control"
+                id="driverPassword"
+                value="moov_va6789"
+              />
+            </div>
+            <div class="col-md-4 d-grid d-md-flex justify-content-md-start">
+              <button id="driverAuthBtn" class="btn btn-primary mt-3 mt-md-0">
+                Fetch Auth Token
+              </button>
+            </div>
+          </div>
+
+          <div id="driverAuthStatus" class="status-text neutral mt-3"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="dropdownMaster" class="tab-content">
       <div class="card portal-card">
         <div class="card-body">
           <div class="card-title">Authentication</div>
@@ -155,44 +190,6 @@
     </section>
 
     <section id="driverSearch" class="tab-content">
-      <div id="driverAuthCard" class="card portal-card">
-        <div class="card-body">
-          <div class="card-title">Authentication</div>
-          <p class="small-muted mb-3">
-            Authenticate with the CRM admin API to fetch a temporary token for driver
-            lookups. Credentials are stored only in this session.
-          </p>
-
-          <div class="row g-3 align-items-end">
-            <div class="col-md-4">
-              <label class="form-label" for="driverEmail">Email ID</label>
-              <input
-                type="email"
-                class="form-control"
-                id="driverEmail"
-                value="Product1@Mooving.com"
-              />
-            </div>
-            <div class="col-md-4">
-              <label class="form-label" for="driverPassword">Password</label>
-              <input
-                type="password"
-                class="form-control"
-                id="driverPassword"
-                value="moov_va6789"
-              />
-            </div>
-            <div class="col-md-4 d-grid d-md-flex justify-content-md-start">
-              <button id="driverAuthBtn" class="btn btn-primary mt-3 mt-md-0">
-                Fetch Auth Token
-              </button>
-            </div>
-          </div>
-
-          <div id="driverAuthStatus" class="status-text neutral mt-3"></div>
-        </div>
-      </div>
-
       <div id="driverSearchCard" class="card portal-card hidden">
         <div class="card-body">
           <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
@@ -200,10 +197,11 @@
               <div class="card-title mb-1">Driver ID Search</div>
               <p class="small-muted mb-0">
                 Search for one or more Driver IDs to view summaries or detailed profiles.
+                Login first to unlock this tool.
               </p>
             </div>
-            <div class="pill status-pill success" id="driverAuthSuccessPill">
-              Authenticated
+            <div class="pill status-pill neutral hidden" id="driverAuthSuccessPill">
+              Login required
             </div>
           </div>
 

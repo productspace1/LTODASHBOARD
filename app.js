@@ -716,9 +716,7 @@ window.addEventListener("DOMContentLoaded", () => {
       if (data && data.token) {
         driverAuthToken = data.token;
         setDriverStatus(driverAuthStatus, "Authentication successful.", "ok");
-        driverAuthCard.classList.add("hidden");
-        driverSearchCard.classList.remove("hidden");
-        driverAuthSuccessPill.classList.remove("hidden");
+        updateDriverAuthUi(true);
         updateBulkAuthPill(true);
       } else {
         setDriverStatus(
@@ -729,6 +727,7 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     } catch (err) {
       setDriverStatus(driverAuthStatus, "Login failed: " + err.message, "err");
+      updateDriverAuthUi(false);
     }
   };
 
@@ -736,14 +735,16 @@ window.addEventListener("DOMContentLoaded", () => {
     if (!driverAuthToken) {
       setDriverStatus(
         statusEl,
-        "Authentication token is missing or expired. Please fetch token again.",
+        "Authentication token is missing or expired. Please login from the Login tab.",
         "err"
       );
-      driverAuthCard.classList.remove("hidden");
-      driverSearchCard.classList.add("hidden");
+      if (driverAuthCard) driverAuthCard.classList.remove("hidden");
+      updateDriverAuthUi(false);
       updateBulkAuthPill(false);
+      switchTab("loginTab");
       return false;
     }
+    updateDriverAuthUi(true);
     updateBulkAuthPill(true);
     return true;
   };
@@ -824,6 +825,19 @@ window.addEventListener("DOMContentLoaded", () => {
       },
       { pending: 0, processing: 0, success: 0, failed: 0 }
     );
+  };
+
+  const updateDriverAuthUi = (hasToken = false) => {
+    if (driverAuthSuccessPill) {
+      driverAuthSuccessPill.classList.remove("hidden", "success", "danger", "neutral");
+      driverAuthSuccessPill.classList.add(hasToken ? "success" : "neutral");
+      driverAuthSuccessPill.textContent = hasToken ? "Authenticated" : "Login required";
+      driverAuthSuccessPill.classList.toggle("hidden", !hasToken);
+    }
+
+    if (driverSearchCard) {
+      driverSearchCard.classList.toggle("hidden", !hasToken);
+    }
   };
 
   const updateBulkPills = () => {
@@ -985,6 +999,9 @@ window.addEventListener("DOMContentLoaded", () => {
     if (extra.currentAsset !== undefined) row.currentAsset = extra.currentAsset;
     renderBulkTable();
   };
+
+  updateDriverAuthUi(false);
+  updateBulkAuthPill(false);
 
   const lockBulkUi = (locked) => {
     if (bulkFileInput) bulkFileInput.disabled = locked;
