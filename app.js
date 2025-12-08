@@ -598,8 +598,24 @@ window.addEventListener("DOMContentLoaded", () => {
   const bulkLoader = document.getElementById("bulkLoader");
   const bulkAuthPill = document.getElementById("bulkAuthPill");
 
+  // CRM asset checker
+  const crmAuthCard = document.getElementById("crmAuthCard");
+  const crmAssetCard = document.getElementById("crmAssetCard");
+  const crmAuthStatus = document.getElementById("crmAuthStatus");
+  const crmAuthBtn = document.getElementById("crmAuthBtn");
+  const assetSerialInput = document.getElementById("assetSerialInput");
+  const assetFetchBtn = document.getElementById("assetFetchBtn");
+  const assetFetchIcon = document.getElementById("assetFetchIcon");
+  const assetFetchSpinner = document.getElementById("assetFetchSpinner");
+  const assetFetchStatus = document.getElementById("assetFetchStatus");
+  const assetResultsBody = document.getElementById("assetResultsBody");
+  const assetResultsSummary = document.getElementById("assetResultsSummary");
+  const assetSearchInput = document.getElementById("assetSearchInput");
+
   let driverAuthToken = null;
   let bulkRows = [];
+  let crmAssetRows = [];
+  let crmAssetTotals = { found: 0, total: 0 };
 
   const placeholderAvatar =
     "https://api.dicebear.com/7.x/initials/svg?seed=Driver&backgroundColor=b6b8c3";
@@ -661,6 +677,35 @@ window.addEventListener("DOMContentLoaded", () => {
     bulkAuthPill.className = `pill status-pill ${hasToken ? "success" : "neutral"}`;
   };
 
+  const setCrmAuthStatus = (message, type = "neutral") => {
+    if (!crmAuthStatus) return;
+    crmAuthStatus.textContent = message || "";
+    crmAuthStatus.className = "status-text " + type;
+  };
+
+  const toggleCrmCards = (isReady) => {
+    if (!crmAuthCard || !crmAssetCard) return;
+    if (isReady) {
+      setTimeout(() => {
+        crmAuthCard.classList.add("hidden");
+        crmAssetCard.classList.remove("hidden");
+      }, 1000);
+    } else {
+      crmAssetCard.classList.add("hidden");
+      crmAuthCard.classList.remove("hidden");
+    }
+  };
+
+  const updateCrmAuthFromLogin = (hasToken) => {
+    if (!crmAuthStatus) return;
+    if (hasToken) {
+      setCrmAuthStatus("Login token fetched. Continue to unlock the asset checker.", "ok");
+    } else {
+      setCrmAuthStatus("Asset checker token missing. Please login from the Login tab.", "err");
+      toggleCrmCards(false);
+    }
+  };
+
   const statusClass = (status) => {
     if (!status) return "neutral";
     const lower = String(status).toLowerCase();
@@ -673,6 +718,133 @@ window.addEventListener("DOMContentLoaded", () => {
   const kycClass = (status) => {
     if (!status) return "neutral";
     return String(status).toLowerCase().includes("pending") ? "warning" : "success";
+  };
+
+  const setAssetStatus = (message, type = "neutral") => {
+    if (!assetFetchStatus) return;
+    assetFetchStatus.textContent = message || "";
+    assetFetchStatus.className = "status-text " + type;
+  };
+
+  const toggleAssetLoading = (isLoading) => {
+    if (!assetFetchBtn) return;
+    assetFetchBtn.disabled = isLoading;
+    if (assetFetchIcon) assetFetchIcon.classList.toggle("hidden", isLoading);
+    if (assetFetchSpinner) assetFetchSpinner.classList.toggle("hidden", !isLoading);
+    const label = assetFetchBtn.querySelector(".btn-label");
+    if (label) label.textContent = isLoading ? "Fetching..." : "Fetch Assets";
+  };
+
+  const assetStatusClass = (status) => {
+    if (!status) return "neutral";
+    const lower = String(status).toLowerCase();
+    if (lower.includes("available") || lower.includes("active") || lower.includes("assigned")) {
+      return "success";
+    }
+    if (lower.includes("pending") || lower.includes("transit")) return "warning";
+    if (lower.includes("lost") || lower.includes("missing") || lower.includes("damage") || lower.includes("inactive")) {
+      return "danger";
+    }
+    return "neutral";
+  };
+
+  const displayValue = (value) => {
+    if (value === null || value === undefined || value === "") return "-";
+    return value;
+  };
+
+  const renderAssetStatusPill = (status) => {
+    const pill = document.createElement("span");
+    pill.className = `pill status-pill ${assetStatusClass(status)}`;
+    pill.textContent = status || "-";
+    return pill;
+  };
+
+  const filterAssetRows = () => {
+    if (!assetSearchInput || !assetResultsBody) return;
+    const query = assetSearchInput.value.trim().toLowerCase();
+    const rows = assetResultsBody.querySelectorAll("tr");
+    rows.forEach((row) => {
+      const matches = !query || row.textContent.toLowerCase().includes(query);
+      row.classList.toggle("hidden", !matches);
+    });
+  };
+
+  const renderAssetRows = () => {
+    if (!assetResultsBody) return;
+    assetResultsBody.innerHTML = "";
+
+    crmAssetRows.forEach((item) => {
+      if (item.type === "asset") {
+        const asset = item.asset || {};
+        const tr = document.createElement("tr");
+        const cells = [
+          displayValue(asset.serialNumber || item.serial),
+          renderAssetStatusPill(asset.assetStatus),
+          displayValue(asset.fpName),
+          displayValue(asset.product_name),
+          displayValue(asset.assignedTo),
+          displayValue(asset.assignedwithDriverId),
+          asset.inventoryDate ? df(asset.inventoryDate) : "-",
+          displayValue(asset.assetCategory)
+        ];
+
+        cells.forEach((cell) => {
+          const td = document.createElement("td");
+          if (cell instanceof HTMLElement) {
+            td.appendChild(cell);
+          } else {
+            td.textContent = cell;
+          }
+          tr.appendChild(td);
+        });
+
+        assetResultsBody.appendChild(tr);
+      } else {
+        const tr = document.createElement("tr");
+        tr.classList.add("table-danger");
+        const td = document.createElement("td");
+        td.colSpan = 8;
+        td.textContent = item.message || `Serial ${item.serial} not found.`;
+        tr.appendChild(td);
+        assetResultsBody.appendChild(tr);
+      }
+    });
+
+    if (assetResultsSummary) {
+      assetResultsSummary.textContent = crmAssetTotals.total
+        ? `Found ${crmAssetTotals.found} of ${crmAssetTotals.total} assets.`
+        : "";
+    }
+
+    filterAssetRows();
+  };
+
+  const fetchAssetForSerial = async (serial) => {
+    const payload = { searchString: serial, pageSize: 10, page: 1, assetCategory: "" };
+    const res = await fetch(`${adminApiBase}/asset/fetchAssetData`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: driverAuthToken
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    if (data?.status && String(data.status).toLowerCase() !== "success") {
+      throw new Error(data?.message || "Asset lookup failed");
+    }
+    const assets = Array.isArray(data?.response)
+      ? data.response
+      : Array.isArray(data?.result?.assetData)
+        ? data.result.assetData
+        : [];
+    return { serial, assets };
   };
 
   const toggleSearchTab = (tabKey) => {
@@ -689,6 +861,86 @@ window.addEventListener("DOMContentLoaded", () => {
   searchTabButtons.forEach((btn) => {
     btn.addEventListener("click", () => toggleSearchTab(btn.dataset.searchTab));
   });
+
+  const parseSerials = () => {
+    if (!assetSerialInput) return [];
+    return assetSerialInput.value
+      .split(/[,\n\r]+/)
+      .map((serial) => serial.trim())
+      .filter((serial) => serial);
+  };
+
+  const handleCrmAuthStep = () => {
+    if (!crmAuthBtn) return;
+
+    if (!driverAuthToken) {
+      setCrmAuthStatus("Login token missing. Please authenticate from the Login tab.", "err");
+      toggleCrmCards(false);
+      return;
+    }
+
+    setCrmAuthStatus("Login token detected. Unlocking asset fetcher...", "neutral");
+    crmAuthBtn.disabled = true;
+
+    setTimeout(() => {
+      setCrmAuthStatus("Authentication ready. Proceed to Step 2.", "ok");
+      toggleCrmCards(true);
+      crmAuthBtn.disabled = false;
+    }, 1000);
+  };
+
+  const handleAssetFetch = async () => {
+    if (!assetFetchBtn) return;
+    if (!driverAuthToken) {
+      setAssetStatus("Login token missing. Please complete Step 1 first.", "err");
+      toggleCrmCards(false);
+      return;
+    }
+
+    const serials = parseSerials();
+    if (!serials.length) {
+      setAssetStatus("Please enter at least one serial number.", "err");
+      return;
+    }
+
+    toggleAssetLoading(true);
+    setAssetStatus("Fetching assets...", "neutral");
+    crmAssetRows = [];
+    crmAssetTotals = { found: 0, total: serials.length };
+
+    try {
+      const requests = serials.map((serial) => fetchAssetForSerial(serial));
+      const settled = await Promise.allSettled(requests);
+
+      const rows = [];
+      let found = 0;
+
+      settled.forEach((result, index) => {
+        const serial = serials[index];
+        if (result.status === "fulfilled") {
+          const assets = result.value.assets || [];
+          if (assets.length) {
+            found += 1;
+            assets.forEach((asset) => rows.push({ type: "asset", serial, asset }));
+          } else {
+            rows.push({ type: "missing", serial, message: `Serial ${serial} not found.` });
+          }
+        } else {
+          const reason = result.reason?.message || String(result.reason || "Unknown error");
+          rows.push({ type: "missing", serial, message: `Serial ${serial} fetch failed: ${reason}` });
+        }
+      });
+
+      crmAssetTotals.found = found;
+      crmAssetRows = rows;
+      renderAssetRows();
+      setAssetStatus(`Completed lookup for ${serials.length} serial(s).`, "ok");
+    } catch (err) {
+      setAssetStatus(`Asset fetch failed: ${err.message || err}`, "err");
+    } finally {
+      toggleAssetLoading(false);
+    }
+  };
 
   const handleDriverAuth = async () => {
     const email = driverEmailInput.value.trim();
@@ -718,16 +970,19 @@ window.addEventListener("DOMContentLoaded", () => {
         setDriverStatus(driverAuthStatus, "Authentication successful.", "ok");
         updateDriverAuthUi(true);
         updateBulkAuthPill(true);
+        updateCrmAuthFromLogin(true);
       } else {
         setDriverStatus(
           driverAuthStatus,
           "Authentication failed. Please check credentials and retry.",
           "err"
         );
+        updateCrmAuthFromLogin(false);
       }
     } catch (err) {
       setDriverStatus(driverAuthStatus, "Login failed: " + err.message, "err");
       updateDriverAuthUi(false);
+      updateCrmAuthFromLogin(false);
     }
   };
 
@@ -1520,6 +1775,10 @@ window.addEventListener("DOMContentLoaded", () => {
     .getElementById("singleDriverSearchBtn")
     .addEventListener("click", handleSingleSearch);
 
+  if (crmAuthBtn) crmAuthBtn.addEventListener("click", handleCrmAuthStep);
+  if (assetFetchBtn) assetFetchBtn.addEventListener("click", handleAssetFetch);
+  if (assetSearchInput) assetSearchInput.addEventListener("input", filterAssetRows);
+
   if (bulkLoadBtn) bulkLoadBtn.addEventListener("click", loadBulkCsv);
   if (bulkProcessBtn) bulkProcessBtn.addEventListener("click", processBulkExchange);
 
@@ -1527,4 +1786,6 @@ window.addEventListener("DOMContentLoaded", () => {
   renderFpList();
   updateBulkAuthPill(false);
   renderBulkTable();
+  updateCrmAuthFromLogin(false);
+  renderAssetRows();
 });
