@@ -215,9 +215,13 @@ const FP_DATA = [
 
 // Initialize Dropdown Master once DOM is ready
 window.addEventListener("DOMContentLoaded", () => {
-  const tabButtons = document.querySelectorAll(".tab-btn[data-target]");
+  const tabButtons = document.querySelectorAll(".nav-tab[data-target]");
   const tabContents = document.querySelectorAll(".tab-content");
+  const appShell = document.getElementById("appShell");
+  const loginScreen = document.getElementById("loginScreen");
+  const sessionNotice = document.getElementById("sessionNotice");
   const adminApiBase = "https://blb-admin-api.emooving.in";
+  const defaultTab = "driverSearch";
 
   const switchTab = (targetId) => {
     tabButtons.forEach((btn) => {
@@ -665,10 +669,37 @@ window.addEventListener("DOMContentLoaded", () => {
     el.className = "status-text " + type;
   };
 
+  const showLoginView = (message) => {
+    if (sessionNotice) {
+      sessionNotice.textContent = message || "Session expired, please login again.";
+      sessionNotice.classList.toggle("hidden", !message && !sessionNotice.textContent);
+    }
+    if (appShell) appShell.classList.add("hidden");
+    if (loginScreen) loginScreen.classList.remove("hidden");
+    tabButtons.forEach((btn) => btn.classList.remove("active"));
+    tabContents.forEach((section) => section.classList.remove("active"));
+  };
+
+  const showAppLayout = () => {
+    if (loginScreen) loginScreen.classList.add("hidden");
+    if (appShell) appShell.classList.remove("hidden");
+    if (sessionNotice) sessionNotice.classList.add("hidden");
+    switchTab(defaultTab);
+  };
+
   const setBulkStatus = (message, type = "neutral") => {
     if (bulkUploadStatus) {
       setDriverStatus(bulkUploadStatus, message, type);
     }
+  };
+
+  const handleSessionExpired = (message = "Session expired, please login again.") => {
+    driverAuthToken = null;
+    setDriverStatus(driverAuthStatus, message, "err");
+    updateDriverAuthUi(false);
+    updateBulkAuthPill(false);
+    toggleCrmCards(false);
+    showLoginView(message);
   };
 
   const updateBulkAuthPill = (hasToken = !!driverAuthToken) => {
@@ -699,9 +730,9 @@ window.addEventListener("DOMContentLoaded", () => {
   const updateCrmAuthFromLogin = (hasToken) => {
     if (!crmAuthStatus) return;
     if (hasToken) {
-      setCrmAuthStatus("Login token fetched. Continue to unlock the asset checker.", "ok");
+      setCrmAuthStatus("Login token ready. Continue to unlock the asset checker.", "ok");
     } else {
-      setCrmAuthStatus("Asset checker token missing. Please login from the Login tab.", "err");
+      setCrmAuthStatus("Login required to fetch CRM assets.", "err");
       toggleCrmCards(false);
     }
   };
@@ -831,6 +862,11 @@ window.addEventListener("DOMContentLoaded", () => {
       body: JSON.stringify(payload)
     });
 
+    if (res.status === 401 || res.status === 403) {
+      handleSessionExpired();
+      throw new Error("Session expired, please login again.");
+    }
+
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
@@ -873,11 +909,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const handleCrmAuthStep = () => {
     if (!crmAuthBtn) return;
 
-    if (!driverAuthToken) {
-      setCrmAuthStatus("Login token missing. Please authenticate from the Login tab.", "err");
-      toggleCrmCards(false);
-      return;
-    }
+    if (!ensureToken(crmAuthStatus)) return;
 
     setCrmAuthStatus("Login token detected. Unlocking asset fetcher...", "neutral");
     crmAuthBtn.disabled = true;
@@ -891,11 +923,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const handleAssetFetch = async () => {
     if (!assetFetchBtn) return;
-    if (!driverAuthToken) {
-      setAssetStatus("Login token missing. Please complete Step 1 first.", "err");
-      toggleCrmCards(false);
-      return;
-    }
+    if (!ensureToken(assetFetchStatus)) return;
 
     const serials = parseSerials();
     if (!serials.length) {
@@ -971,6 +999,7 @@ window.addEventListener("DOMContentLoaded", () => {
         updateDriverAuthUi(true);
         updateBulkAuthPill(true);
         updateCrmAuthFromLogin(true);
+        showAppLayout();
       } else {
         setDriverStatus(
           driverAuthStatus,
@@ -988,15 +1017,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const ensureToken = (statusEl) => {
     if (!driverAuthToken) {
-      setDriverStatus(
-        statusEl,
-        "Authentication token is missing or expired. Please login from the Login tab.",
-        "err"
-      );
-      if (driverAuthCard) driverAuthCard.classList.remove("hidden");
-      updateDriverAuthUi(false);
-      updateBulkAuthPill(false);
-      switchTab("loginTab");
+      setDriverStatus(statusEl, "Session expired, please login again.", "err");
+      handleSessionExpired();
       return false;
     }
     updateDriverAuthUi(true);
@@ -1016,7 +1038,8 @@ window.addEventListener("DOMContentLoaded", () => {
       });
 
       if (res.status === 401 || res.status === 403) {
-        throw new Error("Authentication token is missing or expired. Please fetch token again.");
+        handleSessionExpired();
+        throw new Error("Session expired, please login again.");
       }
 
       const data = await res.json();
@@ -1057,7 +1080,8 @@ window.addEventListener("DOMContentLoaded", () => {
       });
 
       if (res.status === 401 || res.status === 403) {
-        throw new Error("Authentication token is missing or expired. Please fetch token again.");
+        handleSessionExpired();
+        throw new Error("Session expired, please login again.");
       }
 
       const data = await res.json();
