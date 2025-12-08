@@ -836,7 +836,14 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     const data = await res.json();
-    const assets = Array.isArray(data?.result?.assetData) ? data.result.assetData : [];
+    if (data?.status && String(data.status).toLowerCase() !== "success") {
+      throw new Error(data?.message || "Asset lookup failed");
+    }
+    const assets = Array.isArray(data?.response)
+      ? data.response
+      : Array.isArray(data?.result?.assetData)
+        ? data.result.assetData
+        : [];
     return { serial, assets };
   };
 
@@ -858,7 +865,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const parseSerials = () => {
     if (!assetSerialInput) return [];
     return assetSerialInput.value
-      .split(/[\n,\r]+/)
+      .split(/[,\n\r]+/)
       .map((serial) => serial.trim())
       .filter((serial) => serial);
   };
